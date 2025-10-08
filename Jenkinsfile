@@ -15,6 +15,12 @@ pipeline {
                 }
             }
         }
+        stage('Check Workspace Contents') {
+            steps {
+            bat 'dir'
+            }
+        }
+
         
         stage('Build') {
             steps {
