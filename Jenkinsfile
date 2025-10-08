@@ -39,7 +39,7 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo 'Deploying application...'
-                bat 'docker stop jenkins-demo || echo "No container to stop"'
+                bat 'docker stop jenkins-demo || echo No container to stop || exit 0'
                 bat 'docker rm jenkins-demo || echo "No container to remove"'
                 bat 'docker run -d --name jenkins-demo -p 3000:3000 jenkins-demo-app'
             }
