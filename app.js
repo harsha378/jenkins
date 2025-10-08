@@ -5,7 +5,7 @@ const version = process.env.VERSION || 'v1.0';
 
 app.get('/', (req, res) => {
     res.json({
-        message: 'Hello from Blue/Green Deployment!',
+        message: 'Hey Hi Harsha Whatsup!',
         version: version,
         environment: process.env.NODE_ENV || 'development',
         timestamp: new Date().toISOString()
