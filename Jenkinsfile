@@ -2,6 +2,20 @@ pipeline {
     agent any
     
     stages {
+        stage('Docker Check') {
+            steps {
+                echo 'Checking Docker connectivity...'
+                script {
+                    try {
+                        bat 'docker --version'
+                        bat 'docker info'
+                    } catch (Exception e) {
+                        error "Docker is not running or accessible. Please start Docker Desktop and ensure Jenkins has access to Docker."
+                    }
+                }
+            }
+        }
+        
         stage('Build') {
             steps {
                 echo 'Building Docker image...'

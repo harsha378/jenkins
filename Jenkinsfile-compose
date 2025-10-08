@@ -1,0 +1,38 @@
+pipeline {
+    agent any
+    
+    stages {
+        stage('Docker Check') {
+            steps {
+                echo 'Checking Docker connectivity...'
+                script {
+                    try {
+                        bat 'docker --version'
+                        bat 'docker-compose --version'
+                    } catch (Exception e) {
+                        error "Docker is not running. Please start Docker Desktop."
+                    }
+                }
+            }
+        }
+        
+        stage('Build & Deploy Blue-Green') {
+            steps {
+                echo 'Building and deploying with docker-compose...'
+                bat 'docker-compose down || echo "No containers to stop"'
+                bat 'docker-compose up -d --build'
+            }
+        }
+        
+        stage('Verify') {
+            steps {
+                echo 'Verifying deployment...'
+                sleep 10
+                bat 'docker-compose ps'
+                echo 'Blue app: http://localhost:3001'
+                echo 'Green app: http://localhost:3002'
+                echo 'Load balancer: http://localhost:80'
+            }
+        }
+    }
+}
