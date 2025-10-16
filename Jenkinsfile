@@ -7,7 +7,7 @@ pipeline {
         PORT           = '3000'
         SEMGREP_IMAGE  = 'returntocorp/semgrep'
         ZAP_IMAGE      = 'ghcr.io/zaproxy/zaproxy:stable'
-        SLACK_CHANNEL  = '#all-security' // 👈 your Slack channel
+        SLACK_CHANNEL  = '#all-security'
     }
 
     stages {
@@ -135,13 +135,23 @@ pipeline {
 
         failure {
             echo '❌ Build failed — Check SAST/DAST or Docker errors.'
-            slackSend(channel: "${SLACK_CHANNEL}", message: "❌ *Build FAILED* for `${APP_NAME}` on Jenkins.\nCheck Jenkins for details: ${env.BUILD_URL}")
+            slackSend(
+                channel: "${SLACK_CHANNEL}",
+                tokenCredentialId: 'slack-token',
+                color: 'danger',
+                message: "❌ *Build FAILED* for `${APP_NAME}` on Jenkins.\nCheck Jenkins for details: ${env.BUILD_URL}"
+            )
         }
 
         success {
             echo '✅ Build, deployment, and security scans completed successfully.'
             echo "📊 ZAP report is available in the Jenkins sidebar."
-            slackSend(channel: "${SLACK_CHANNEL}", message: "✅ *Build SUCCESS* for `${APP_NAME}`.\nView ZAP Report: ${env.BUILD_URL}OWASP_20ZAP_20DAST_20Report")
+            slackSend(
+                channel: "${SLACK_CHANNEL}",
+                tokenCredentialId: 'slack-token',
+                color: 'good',
+                message: "✅ *Build SUCCESS* for `${APP_NAME}`.\nView ZAP Report: ${env.BUILD_URL}OWASP_20ZAP_20DAST_20Report"
+            )
         }
     }
 }
