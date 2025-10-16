@@ -84,7 +84,8 @@ pipeline {
                 bat '''
                     docker run --rm ^
                     -v "%CD%":/zap/wrk ^
-                    owasp/zap2docker-stable zap-baseline.py ^
+                    ghcr.io/zaproxy/zaproxy:stabley ^
+                    zap-baseline.py
                     -t http://localhost:3000 ^
                     -r dast-report.html
                 '''
