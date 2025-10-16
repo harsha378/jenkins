@@ -5,9 +5,8 @@ pipeline {
 
         stage('Semgrep Scan') {
             steps {
-                echo 'Running Semgrep SAST security scan...'
+                echo '🔐 Running Semgrep SAST security scan...'
                 withCredentials([string(credentialsId: 'SEMGRP_TOKEN', variable: 'SEMGREP_APP_TOKEN')]) {
-                    // Using Docker image for Semgrep
                     bat '''
                         docker run --rm ^
                         -v "%CD%":/src ^
@@ -20,7 +19,7 @@ pipeline {
 
         stage('Docker Check') {
             steps {
-                echo 'Checking Docker connectivity...'
+                echo '🐳 Checking Docker connectivity...'
                 script {
                     try {
                         bat 'docker --version'
@@ -40,21 +39,21 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo 'Building Docker image...'
+                echo '🏗️ Building Docker image...'
                 bat 'docker build -t jenkins-demo-app .'
             }
         }
 
         stage('Test') {
             steps {
-                echo 'Running tests...'
+                echo '🧪 Running tests...'
                 bat 'echo "Tests passed"'
             }
         }
 
         stage('Deploy') {
             steps {
-                echo 'Deploying application...'
+                echo '🚀 Deploying application...'
                 bat '''
                     docker stop jenkins-demo
                     if %errorlevel% neq 0 (
@@ -71,20 +70,40 @@ pipeline {
 
         stage('Verify') {
             steps {
-                echo 'Verifying deployment...'
+                echo '🧭 Verifying deployment...'
                 sleep 5
                 bat 'docker ps'
                 echo 'Application should be running on http://localhost:3000'
+            }
+        }
+
+        stage('DAST Scan') {
+            steps {
+                echo '🕵️ Running OWASP ZAP DAST scan...'
+                // Run a baseline scan against the running app
+                bat '''
+                    docker run --rm ^
+                    -v "%CD%":/zap/wrk ^
+                    owasp/zap2docker-stable zap-baseline.py ^
+                    -t http://host.docker.internal:3000 ^
+                    -r dast-report.html
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'dast-report.html', fingerprint: true
+                    echo '📄 ZAP DAST report archived as dast-report.html'
+                }
             }
         }
     }
 
     post {
         failure {
-            echo '❌ Build failed — Check Semgrep or Docker errors.'
+            echo '❌ Build failed — Check SAST/DAST or Docker errors.'
         }
         success {
-            echo '✅ Build and deployment completed successfully.'
+            echo '✅ Build, deployment, and security scans completed successfully.'
         }
     }
 }
