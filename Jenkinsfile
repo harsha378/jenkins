@@ -7,6 +7,7 @@ pipeline {
         PORT           = '3000'
         SEMGREP_IMAGE  = 'returntocorp/semgrep'
         ZAP_IMAGE      = 'ghcr.io/zaproxy/zaproxy:stable'
+        SLACK_CHANNEL  = '#all-security' // 👈 your Slack channel
     }
 
     stages {
@@ -67,19 +68,9 @@ pipeline {
             steps {
                 echo '🚀 Deploying application...'
                 script {
-                    // Stop old container if running
-                    try {
-                        bat "docker stop ${CONTAINER_NAME}"
-                    } catch (Exception e) {
-                        echo "No existing container to stop."
-                    }
-
-                    // Remove old container if exists
-                    try {
-                        bat "docker rm ${CONTAINER_NAME}"
-                    } catch (Exception e) {
-                        echo "No existing container to remove."
-                    }
+                    // Stop and remove old container if exists
+                    bat "docker stop ${CONTAINER_NAME} || echo No existing container"
+                    bat "docker rm ${CONTAINER_NAME} || echo No existing container"
 
                     // Run the new container
                     bat "docker run -d --name ${CONTAINER_NAME} -p ${PORT}:${PORT} ${APP_NAME}"
@@ -123,8 +114,6 @@ pipeline {
                     """
 
                     archiveArtifacts artifacts: reportFile, fingerprint: true
-
-                    // Optional quality gate (fail if needed)
                     echo "🛡️ ZAP Scan Completed - Report: ${reportFile}"
                 }
             }
@@ -146,11 +135,13 @@ pipeline {
 
         failure {
             echo '❌ Build failed — Check SAST/DAST or Docker errors.'
+            slackSend(channel: "${SLACK_CHANNEL}", message: "❌ *Build FAILED* for `${APP_NAME}` on Jenkins.\nCheck Jenkins for details: ${env.BUILD_URL}")
         }
 
         success {
             echo '✅ Build, deployment, and security scans completed successfully.'
             echo "📊 ZAP report is available in the Jenkins sidebar."
+            slackSend(channel: "${SLACK_CHANNEL}", message: "✅ *Build SUCCESS* for `${APP_NAME}`.\nView ZAP Report: ${env.BUILD_URL}OWASP_20ZAP_20DAST_20Report")
         }
     }
 }
