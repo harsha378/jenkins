@@ -2,12 +2,13 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME       = 'jenkins-demo-app'
-        CONTAINER_NAME = 'jenkins-demo'
-        PORT           = '3000'
-        SEMGREP_IMAGE  = 'returntocorp/semgrep'
-        ZAP_IMAGE      = 'ghcr.io/zaproxy/zaproxy:stable'
-        SLACK_CHANNEL  = '#all-security'
+        APP_NAME         = 'jenkins-demo-app'
+        CONTAINER_NAME   = 'jenkins-demo'
+        PORT             = '3000'
+        SEMGREP_IMAGE    = 'returntocorp/semgrep'
+        ZAP_IMAGE        = 'ghcr.io/zaproxy/zaproxy:stable'
+        SLACK_CHANNEL    = '#all-security'
+        SLACK_TOKEN_ID   = 'slack-token' // Jenkins secret text credential ID
     }
 
     stages {
@@ -135,23 +136,18 @@ pipeline {
 
         failure {
             echo '❌ Build failed — Check SAST/DAST or Docker errors.'
-            slackSend(
-                channel: "${SLACK_CHANNEL}",
-                tokenCredentialId: 'slack-token',
-                color: 'danger',
-                message: "❌ *Build FAILED* for `${APP_NAME}` on Jenkins.\nCheck Jenkins for details: ${env.BUILD_URL}"
-            )
+            slackSend channel: "${SLACK_CHANNEL}",
+                      color: 'danger',
+                      message: "❌ *Build FAILED* for `${APP_NAME}`\n🔗 ${env.BUILD_URL}",
+                      tokenCredentialId: "${SLACK_TOKEN_ID}"
         }
 
         success {
             echo '✅ Build, deployment, and security scans completed successfully.'
-            echo "📊 ZAP report is available in the Jenkins sidebar."
-            slackSend(
-                channel: "${SLACK_CHANNEL}",
-                token: 'xoxe.xoxp-1-Mi0yLTk3MzczOTI5NjEzNjAtOTcxMjY1NjY1NDAwNC05NjkzODI1NzMyOTUxLTk3MjIxOTE3NDU0NTctNjhkYmQyNjJlY2Q2NDU3MWU0NzY4MjBiYjIyNjgxNTEwYzZhMjgwYzg0NzBkNDhlN2M5ZGUxNzQ5ZWE5YTdkMQ'
-                color: 'good',
-                message: "✅ *Build SUCCESS* for `${APP_NAME}`.\nView ZAP Report: ${env.BUILD_URL}OWASP_20ZAP_20DAST_20Report"
-            )
+            slackSend channel: "${SLACK_CHANNEL}",
+                      color: 'good',
+                      message: "✅ *Build SUCCESS* for `${APP_NAME}`\n📊 ZAP Report: ${env.BUILD_URL}OWASP_20ZAP_20DAST_20Report",
+                      tokenCredentialId: "${SLACK_TOKEN_ID}"
         }
     }
 }
