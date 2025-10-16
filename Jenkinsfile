@@ -148,7 +148,7 @@ pipeline {
             echo "📊 ZAP report is available in the Jenkins sidebar."
             slackSend(
                 channel: "${SLACK_CHANNEL}",
-                token: 'xoxb-9737392961360-9707238791766-D8Qt9SkHTFacK02VAaagA9kV',
+                token: 'xoxe.xoxp-1-Mi0yLTk3MzczOTI5NjEzNjAtOTcxMjY1NjY1NDAwNC05NjkzODI1NzMyOTUxLTk3MjIxOTE3NDU0NTctNjhkYmQyNjJlY2Q2NDU3MWU0NzY4MjBiYjIyNjgxNTEwYzZhMjgwYzg0NzBkNDhlN2M5ZGUxNzQ5ZWE5YTdkMQ'
                 color: 'good',
                 message: "✅ *Build SUCCESS* for `${APP_NAME}`.\nView ZAP Report: ${env.BUILD_URL}OWASP_20ZAP_20DAST_20Report"
             )
