@@ -9,7 +9,7 @@ pipeline {
                 withCredentials([string(credentialsId: 'SEMGRP_TOKEN', variable: 'SEMGREP_APP_TOKEN')]) {
                     bat '''
                         docker run --rm ^
-                        -v "%CD%":/src ^
+                        -v "%WORKSPACE%":/src ^
                         -e SEMGREP_APP_TOKEN=%SEMGREP_APP_TOKEN% ^
                         returntocorp/semgrep semgrep ci
                     '''
@@ -80,13 +80,13 @@ pipeline {
         stage('DAST Scan') {
             steps {
                 echo '🕵️ Running OWASP ZAP DAST scan...'
-                // Run a baseline scan against the running app
                 bat '''
                     docker run --rm ^
-                    -v "%CD%":/zap/wrk ^
-                    ghcr.io/zaproxy/zaproxy:stabley ^
-                    zap-baseline.py
-                    -t http://localhost:3000 ^
+                    -v "%WORKSPACE%":/zap/wrk ^
+                    ghcr.io/zaproxy/zaproxy:stable ^
+                    zap-baseline.py ^
+                    -t http://host.docker.internal:3000 ^
+                    -I ^
                     -r dast-report.html
                 '''
             }
@@ -100,6 +100,19 @@ pipeline {
     }
 
     post {
+        always {
+            script {
+                // Optional: Publish ZAP report as HTML inside Jenkins UI
+                publishHTML(target: [
+                    allowMissing: true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: '.',
+                    reportFiles: 'dast-report.html',
+                    reportName: 'ZAP DAST Report'
+                ])
+            }
+        }
         failure {
             echo '❌ Build failed — Check SAST/DAST or Docker errors.'
         }
