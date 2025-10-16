@@ -85,7 +85,7 @@ pipeline {
                     docker run --rm ^
                     -v "%CD%":/zap/wrk ^
                     owasp/zap2docker-stable zap-baseline.py ^
-                    -t http://host.docker.internal:3000 ^
+                    -t http://localhost:3000 ^
                     -r dast-report.html
                 '''
             }
