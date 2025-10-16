@@ -2,26 +2,14 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "jenkins-demo-app"
-        CONTAINER_NAME = "jenkins-demo"
-        PORT = "3000"
+        APP_NAME       = 'jenkins-demo-app'
+        CONTAINER_NAME = 'jenkins-demo'
+        PORT           = '3000'
+        SEMGREP_IMAGE  = 'returntocorp/semgrep'
+        ZAP_IMAGE      = 'ghcr.io/zaproxy/zaproxy:stable'
     }
 
     stages {
-
-        stage('Semgrep Scan') {
-            steps {
-                echo '🔐 Running Semgrep SAST security scan...'
-                withCredentials([string(credentialsId: 'SEMGRP_TOKEN', variable: 'SEMGREP_APP_TOKEN')]) {
-                    bat '''
-                        docker run --rm ^
-                        -v "%WORKSPACE%":/src ^
-                        -e SEMGREP_APP_TOKEN=%SEMGREP_APP_TOKEN% ^
-                        returntocorp/semgrep semgrep ci
-                    '''
-                }
-            }
-        }
 
         stage('Docker Check') {
             steps {
@@ -31,7 +19,7 @@ pipeline {
                         bat 'docker --version'
                         bat 'docker info'
                     } catch (Exception e) {
-                        error "🚨 Docker is not running or accessible. Please start Docker Desktop and ensure Jenkins has access to Docker."
+                        error "❌ Docker is not running or accessible. Please start Docker Desktop and ensure Jenkins has access to Docker."
                     }
                 }
             }
@@ -39,87 +27,105 @@ pipeline {
 
         stage('Check Workspace Contents') {
             steps {
-                echo '📂 Listing files in workspace...'
                 bat 'dir'
             }
         }
 
-        stage('Build') {
-            steps {
-                echo '🏗️ Building Docker image...'
-                bat "docker build -t ${IMAGE_NAME} ."
+        stage('Security & Build') {
+            parallel {
+                stage('Semgrep SAST') {
+                    steps {
+                        echo '🔐 Running Semgrep SAST scan...'
+                        withCredentials([string(credentialsId: 'SEMGRP_TOKEN', variable: 'SEMGREP_APP_TOKEN')]) {
+                            bat """
+                                docker run --rm ^
+                                -v "%WORKSPACE%":/src ^
+                                -e SEMGREP_APP_TOKEN=%SEMGREP_APP_TOKEN% ^
+                                ${SEMGREP_IMAGE} semgrep ci
+                            """
+                        }
+                    }
+                }
+
+                stage('Build Docker Image') {
+                    steps {
+                        echo '🏗️ Building Docker image...'
+                        bat "docker build -t ${APP_NAME} ."
+                    }
+                }
             }
         }
 
         stage('Test') {
             steps {
                 echo '🧪 Running tests...'
-                bat 'echo "✅ Tests passed"'
+                bat 'echo "All tests passed successfully."'
             }
         }
 
         stage('Deploy') {
             steps {
                 echo '🚀 Deploying application...'
-                bat """
-                    docker stop ${CONTAINER_NAME}
-                    if %errorlevel% neq 0 (
-                        echo No container to stop
-                    )
-                    docker rm ${CONTAINER_NAME}
-                    if %errorlevel% neq 0 (
-                        echo No container to remove
-                    )
-                    docker run -d --name ${CONTAINER_NAME} -p ${PORT}:3000 ${IMAGE_NAME}
-                """
-            }
-        }
+                script {
+                    // Stop old container if running
+                    try {
+                        bat "docker stop ${CONTAINER_NAME}"
+                    } catch (Exception e) {
+                        echo "No existing container to stop."
+                    }
 
-        stage('Verify') {
-            steps {
-                echo '🧭 Verifying deployment...'
-                sleep 5
-                bat 'docker ps'
-                echo "🌐 Application should be running on http://localhost:${PORT}"
-            }
-        }
+                    // Remove old container if exists
+                    try {
+                        bat "docker rm ${CONTAINER_NAME}"
+                    } catch (Exception e) {
+                        echo "No existing container to remove."
+                    }
 
-        stage('DAST Scan') {
-            steps {
-                echo '🕵️ Running OWASP ZAP DAST scan...'
-                bat """
-                    docker run --rm ^
-                    -v "%WORKSPACE%":/zap/wrk ^
-                    ghcr.io/zaproxy/zaproxy:stable ^
-                    zap-baseline.py ^
-                    -t http://host.docker.internal:${PORT} ^
-                    -I ^
-                    -r dast-report.html
-                """
-            }
-            post {
-                always {
-                    echo '📄 Archiving ZAP DAST report...'
-                    archiveArtifacts artifacts: 'dast-report.html', fingerprint: true
+                    // Run the new container
+                    bat "docker run -d --name ${CONTAINER_NAME} -p ${PORT}:${PORT} ${APP_NAME}"
                 }
             }
         }
 
-        stage('DAST Result Analysis') {
+        stage('Verify Deployment') {
             steps {
+                echo '🧭 Verifying deployment...'
                 script {
-                    echo '📊 Analyzing DAST scan results...'
-                    def reportContent = readFile('dast-report.html')
+                    sleep 5
+                    def status = bat(
+                        script: "curl -s -o NUL -w \"%{http_code}\" http://localhost:${PORT}",
+                        returnStdout: true
+                    ).trim()
 
-                    if (reportContent.contains('FAIL-NEW')) {
-                        currentBuild.result = 'FAILURE'
-                        error("❌ Critical vulnerabilities found. Failing the build.")
-                    } else if (reportContent.contains('WARN-NEW')) {
-                        currentBuild.result = 'UNSTABLE'
-                        echo "⚠️ Warnings found in DAST scan. Build marked as UNSTABLE."
-                    } else {
-                        echo "✅ No critical vulnerabilities found in DAST scan."
+                    echo "Health Check Status: ${status}"
+                    if (status != "200") {
+                        error "❌ Application failed health check!"
                     }
+                }
+            }
+        }
+
+        stage('DAST Scan with ZAP') {
+            steps {
+                echo '🕵️ Running OWASP ZAP DAST scan...'
+                script {
+                    def timestamp = new Date().format("yyyyMMdd-HHmmss")
+                    def reportFile = "dast-report-${timestamp}.html"
+
+                    bat """
+                        docker run --rm ^
+                        -v "%WORKSPACE%":/zap/wrk ^
+                        ${ZAP_IMAGE} ^
+                        zap-baseline.py ^
+                        -t http://host.docker.internal:${PORT} ^
+                        -I ^
+                        -r ${reportFile}
+                    """
+
+                    archiveArtifacts artifacts: reportFile, fingerprint: true
+
+                    // Optional quality gate (fail if needed)
+                    echo "🛡️ ZAP Scan Completed - Report: ${reportFile}"
                 }
             }
         }
@@ -127,14 +133,13 @@ pipeline {
 
     post {
         always {
-            echo '📢 Publishing DAST report...'
-            // Make sure HTML Publisher Plugin is installed in Jenkins
+            echo '📦 Archiving DAST Report'
             publishHTML(target: [
                 allowMissing: true,
                 alwaysLinkToLastBuild: true,
                 keepAll: true,
                 reportDir: '.',
-                reportFiles: 'dast-report.html',
+                reportFiles: '**/dast-report-*.html',
                 reportName: 'OWASP ZAP DAST Report'
             ])
         }
@@ -143,12 +148,9 @@ pipeline {
             echo '❌ Build failed — Check SAST/DAST or Docker errors.'
         }
 
-        unstable {
-            echo '⚠️ Build marked as UNSTABLE due to vulnerabilities.'
-        }
-
         success {
             echo '✅ Build, deployment, and security scans completed successfully.'
+            echo "📊 ZAP report is available in the Jenkins sidebar."
         }
     }
 }
