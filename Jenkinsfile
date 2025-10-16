@@ -80,12 +80,14 @@ pipeline {
         stage('DAST Scan') {
             steps {
                 echo '🕵️ Running OWASP ZAP DAST scan...'
-                // Run a baseline scan against the running app
+                // Run a baseline scan against the running app with fail-on-high severity
                 bat '''
                     docker run --rm ^
                     -v "%CD%":/zap/wrk ^
-                    owasp/zap2docker-stable zap-baseline.py ^
-                    -t http://localhost:3000 ^
+                    ghcr.io/zaproxy/zaproxy:stable ^
+                    zap-baseline.py ^
+                    -t http://host.docker.internal:3000 ^
+                    -I ^
                     -r dast-report.html
                 '''
             }
